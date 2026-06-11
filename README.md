@@ -47,23 +47,39 @@ python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activa
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Set API keys
+# 3. Set API keys  (OpenAI + Cohere shown; see Installation for Anthropic/Ollama)
 export OPENAI_API_KEY="sk-..."
-export CO_API_KEY="..."          # Cohere key — free tier works fine
+export CO_API_KEY="..."          # Cohere — free tier works fine
 
 # 4. Run the full pipeline (reset → index → evaluate)
 python main.py run
 ```
 
-That's it. The pipeline indexes the hotel PDF in `sample_data/source/` and runs the questions from `sample_data/eval/sample_questions.json`.
+That's it. The pipeline indexes the hotel PDF in `sample_data/source/` and evaluates with `sample_data/eval/sample_questions.json`.
+
+**No OpenAI account?** Run fully locally with Ollama:
+
+```bash
+# After installing Ollama and pulling a model:
+ollama pull llama3.2
+export LLM_PROVIDER=ollama
+export CO_API_KEY="..."
+python main.py run
+```
 
 ## Installation
 
 ### Prerequisites
 
 - Python 3.10+
-- An [OpenAI API key](https://platform.openai.com/account/api-keys)
-- A [Cohere API key](https://cohere.com/) (free tier is sufficient for re-ranking)
+- A [Cohere API key](https://cohere.com/) (free tier works) for re-ranking
+- An LLM provider — pick one:
+
+| Provider | Env var needed | Free? |
+|---|---|---|
+| OpenAI (default) | `OPENAI_API_KEY` | No |
+| Anthropic Claude | `ANTHROPIC_API_KEY` | No |
+| Ollama (local) | none | Yes — [install Ollama](https://ollama.com) |
 
 ### Set Up
 
@@ -76,20 +92,31 @@ pip install -r requirements.txt
 ### Environment Variables
 
 ```bash
-# bash / zsh
-export OPENAI_API_KEY="your_openai_api_key"
+# Cohere (required for re-ranking)
 export CO_API_KEY="your_cohere_api_key"
 
-# fish shell
-set -x OPENAI_API_KEY "your_openai_api_key"
-set -x CO_API_KEY "your_cohere_api_key"
+# LLM provider — choose one:
+export LLM_PROVIDER=openai       # default
+export OPENAI_API_KEY="sk-..."
 
-# Windows (Command Prompt)
-set OPENAI_API_KEY=your_openai_api_key
-set CO_API_KEY=your_cohere_api_key
+# -- or --
+export LLM_PROVIDER=anthropic
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# -- or (no API key needed) --
+export LLM_PROVIDER=ollama       # runs against http://localhost:11434
 ```
 
-To use a different LLM (e.g. Anthropic Claude, Ollama), edit `src/util/invoke_ai.py` — that single function is the only integration point.
+Optional overrides:
+
+```bash
+export OPENAI_MODEL=gpt-4o-mini        # default: o4-mini
+export ANTHROPIC_MODEL=claude-haiku-4-5-20251001  # default: claude-sonnet-4-6
+export OLLAMA_MODEL=mistral            # default: llama3.2
+export OLLAMA_BASE_URL=http://localhost:11434      # default
+```
+
+For fish shell, replace `export X=Y` with `set -x X Y`.
 
 ## Usage
 
@@ -169,25 +196,26 @@ simple-rag-pipeline/
 
 The abstract interfaces in `src/interface/` are designed to be replaced:
 
-| Want to change? | Edit this file |
+| Want to change? | How |
 |---|---|
-| LLM provider (OpenAI → Claude / Ollama) | `src/util/invoke_ai.py` |
-| Vector store (LanceDB → Chroma / Qdrant) | `src/impl/datastore.py` |
-| Document parser (Docling → Unstructured) | `src/impl/indexer.py` |
-| Re-ranker (Cohere → cross-encoder) | `src/impl/retriever.py` |
-| Evaluator logic | `src/impl/evaluator.py` |
+| LLM provider (OpenAI / Claude / Ollama) | Set `LLM_PROVIDER` env var — no code change needed |
+| LLM model name | Set `OPENAI_MODEL` / `ANTHROPIC_MODEL` / `OLLAMA_MODEL` |
+| Vector store (LanceDB → Chroma / Qdrant) | Edit `src/impl/datastore.py` |
+| Document parser (Docling → Unstructured) | Edit `src/impl/indexer.py` |
+| Re-ranker (Cohere → cross-encoder) | Edit `src/impl/retriever.py` |
+| Evaluator logic | Edit `src/impl/evaluator.py` |
 
 ## 🚀 Roadmap & Future Releases
 
 Planned improvements to help learners go deeper:
 
-### v1.1 — Multi-LLM Support
-Add a `LLM_PROVIDER` environment variable (values: `openai`, `anthropic`, `ollama`) so learners can run the pipeline fully locally without API keys, or easily compare LLM outputs side-by-side. Anthropic Claude and Ollama factory wrappers would live alongside the existing OpenAI one in `invoke_ai.py`.
+### ✅ v1.1 — Multi-LLM Support ([#1](https://github.com/sevasek/simple-rag-pipeline/issues/1))
+~~Add a `LLM_PROVIDER` environment variable~~ — **Done.** Set `LLM_PROVIDER` to `openai` (default), `anthropic`, or `ollama` to switch LLM backends with no code changes. Ollama lets you run the full pipeline locally with no API key.
 
-### v1.2 — Gradio / Streamlit Chat UI
+### v1.2 — Gradio / Streamlit Chat UI ([#2](https://github.com/sevasek/simple-rag-pipeline/issues/2))
 A minimal web interface on top of the existing `process_query` method, so learners who aren't comfortable with the CLI can still experiment. No new pipeline code needed — just a thin UI wrapper with a chat history panel and a document upload button.
 
-### v1.3 — Chunking Strategy Benchmark
+### v1.3 — Chunking Strategy Benchmark ([#3](https://github.com/sevasek/simple-rag-pipeline/issues/3))
 A `python main.py benchmark` command that runs the same eval set using three chunking strategies (fixed-size 512 tokens, sentence-level, Docling hybrid) and prints a side-by-side accuracy table. Teaches learners the single biggest lever in RAG quality with zero configuration required.
 
 ## 🔗 Alternatives
